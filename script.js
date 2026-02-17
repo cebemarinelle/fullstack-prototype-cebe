@@ -490,35 +490,172 @@ function deleteEmployee(employeeId) {
     saveToStorage();
     renderEmployeesTable();
 }
+
+// =====================================================
+// PHASE 7 – USER REQUESTS
+// =====================================================
+
+let requestModal = null;
+
+function openRequestModal() {
+    // Reset form
+    document.getElementById('requestForm').reset();
+    document.getElementById('itemsContainer').innerHTML = '';
+    
+    // Add first item row by default
+    addItemRow();
+    
+    // Show modal
+    if (requestModal) {
+        requestModal.show();
+    }
+}
+
+function addItemRow() {
+    const container = document.getElementById('itemsContainer');
+    const itemRow = document.createElement('div');
+    itemRow.className = 'item-row d-flex gap-2 mb-2';
+    itemRow.innerHTML = `
+        <input type="text" class="form-control" placeholder="Item name" required>
+        <input type="number" class="form-control" placeholder="Qty" min="1" value="1" required style="width: 100px">
+        <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.item-row').remove()">×</button>
+    `;
+    container.appendChild(itemRow);
+}
+
+function saveRequest() {
+    // Get form values
+    const type = document.getElementById('requestType').value;
+    
+    // Validate type
+    if (!type) {
+        alert('Please select a request type');
+        return;
+    }
+    
+    // Get all items
+    const itemRows = document.querySelectorAll('.item-row');
+    const items = [];
+    
+    for (let row of itemRows) {
+        const inputs = row.querySelectorAll('input');
+        const itemName = inputs[0].value.trim();
+        const quantity = parseInt(inputs[1].value);
+        
+        if (itemName && quantity > 0) {
+            items.push({
+                name: itemName,
+                qty: quantity
+            });
+        }
+    }
+    
+    // Validate at least one item
+    if (items.length === 0) {
+        alert('Please add at least one item');
+        return;
+    }
+    
+    // Create request object
+    const newRequest = {
+        id: Date.now(),
+        type: type,
+        items: items,
+        status: 'Pending',
+        date: new Date().toISOString(),
+        employeeEmail: currentUser.email
+    };
+    
+    // Add to database
+    if (!window.db.requests) {
+        window.db.requests = [];
+    }
+    window.db.requests.push(newRequest);
+    
+    // Save to storage
+    saveToStorage();
+    
+    // Close modal and refresh list
+    requestModal.hide();
+    renderRequestsList();
+    
+    alert('Request submitted successfully!');
+}
+
+function renderRequestsList() {
+    const container = document.getElementById('requestsTableContainer');
+    if (!container) return;
+    
+    // Filter requests for current user
+    const userRequests = window.db.requests.filter(r => r.employeeEmail === currentUser?.email);
+    
+    if (userRequests.length === 0) {
+        container.innerHTML = '<p class="text-muted">No requests found. Click "+ New Request" to create one.</p>';
+        return;
+    }
+    
+    let html = `<table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Items</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    
+    userRequests.forEach(request => {
+        const itemsList = request.items.map(item => `${item.name} (x${item.qty})`).join(', ');
+        
+        let badgeClass = 'bg-warning';
+        if (request.status === 'Approved') badgeClass = 'bg-success';
+        if (request.status === 'Rejected') badgeClass = 'bg-danger';
+        
+        const date = new Date(request.date).toLocaleDateString();
+        
+        html += `<tr>
+            <td><span class="badge bg-info">${request.type}</span></td>
+            <td>${itemsList}</td>
+            <td><span class="badge ${badgeClass}">${request.status}</span></td>
+            <td>${date}</td>
+        </tr>`;
+    });
+    
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
 // =====================================================
 // PHASE 2 – ROUTING SYSTEM
 // =====================================================
 
-function navigateTo(hash){ window.location.hash=hash; }
+function navigateTo(hash){ window.location.hash = hash; }
 
 function handleRouting(){
-    let hash = window.location.hash||"#/";
-    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    let hash = window.location.hash || "#/";
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
 
-    const map={
-        "#/":"home-page",
-        "#/login":"login-page",
-        "#/register":"register-page",
-        "#/verify-email":"verify-email-page",
-        "#/profile":"profile-page",
-        "#/accounts":"accounts-page",
-        "#/departments":"departments-page",
-        "#/employees":"employees-page",
-        "#/requests":"requests-page"
+    const map = {
+        "#/": "home-page",
+        "#/login": "login-page",
+        "#/register": "register-page",
+        "#/verify-email": "verify-email-page",
+        "#/profile": "profile-page",
+        "#/accounts": "accounts-page",
+        "#/departments": "departments-page",
+        "#/employees": "employees-page",
+        "#/requests": "requests-page"
     };
 
     const pageId = map[hash] || "home-page";
     document.getElementById(pageId)?.classList.add("active");
 
-    if(pageId==="profile-page") renderProfile();
-    if(pageId==="accounts-page") renderAccountsList();
-    if(pageId==="departments-page") renderDepartmentsTable();
-    if(pageId==="employees-page") renderEmployeesTable();
+    if(pageId === "profile-page") renderProfile();
+    if(pageId === "accounts-page") renderAccountsList();
+    if(pageId === "departments-page") renderDepartmentsTable();
+    if(pageId === "employees-page") renderEmployeesTable();
+    if(pageId === "requests-page") renderRequestsList();
 }
 
 // =====================================================
@@ -527,32 +664,53 @@ function handleRouting(){
 
 function registerUser(event){
     event.preventDefault();
-    if(window.db.accounts.find(a=>a.email===regEmail.value.trim())) return alert("Email exists");
+    
+    const email = document.getElementById('regEmail').value.trim();
+    
+    if(window.db.accounts.find(a => a.email === email)) {
+        alert("Email exists");
+        return;
+    }
+    
     window.db.accounts.push({
-        firstName: regFirstName.value.trim(),
-        lastName: regLastName.value.trim(),
-        email: regEmail.value.trim(),
-        password: regPassword.value,
+        firstName: document.getElementById('regFirstName').value.trim(),
+        lastName: document.getElementById('regLastName').value.trim(),
+        email: email,
+        password: document.getElementById('regPassword').value,
         role: "user",
         verified: false
     });
+    
     saveToStorage();
-    localStorage.setItem("unverified_email", regEmail.value);
+    localStorage.setItem("unverified_email", email);
     navigateTo("#/verify-email");
 }
 
 function verifyEmail(){
     const email = localStorage.getItem("unverified_email");
-    const user = window.db.accounts.find(a=>a.email===email);
-    if(user) { user.verified = true; saveToStorage(); }
+    const user = window.db.accounts.find(a => a.email === email);
+    if(user) { 
+        user.verified = true; 
+        saveToStorage(); 
+    }
     localStorage.removeItem("unverified_email");
     navigateTo("#/login");
 }
 
 function loginUser(event){
     event.preventDefault();
-    const user = window.db.accounts.find(a=>a.email===loginEmail.value && a.password===loginPassword.value && a.verified);
-    if(!user) return alert("Invalid credentials");
+    
+    const user = window.db.accounts.find(a => 
+        a.email === document.getElementById('loginEmail').value && 
+        a.password === document.getElementById('loginPassword').value && 
+        a.verified
+    );
+    
+    if(!user) {
+        alert("Invalid credentials");
+        return;
+    }
+    
     localStorage.setItem("auth_token", user.email);
     setAuthState(true, user);
     navigateTo("#/profile");
@@ -572,5 +730,12 @@ window.addEventListener("DOMContentLoaded", ()=>{
     loadFromStorage();
     checkAuthOnLoad();
     handleRouting();
+    
+    // Initialize request modal
+    const modalElement = document.getElementById('requestModal');
+    if (modalElement) {
+        requestModal = new bootstrap.Modal(modalElement);
+    }
 });
+
 window.addEventListener("hashchange", handleRouting);

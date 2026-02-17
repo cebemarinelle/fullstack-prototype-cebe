@@ -173,11 +173,49 @@
 <section id="requests-page" class="page">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>My Requests</h2>
-        <button class="btn btn-primary" onclick="openRequestForm()">+ New Request</button>
+        <button class="btn btn-primary" onclick="openRequestModal()">+ New Request</button>
     </div>
     <div id="requestsTableContainer" class="mt-3"></div>
-    <div id="requestFormContainer" class="mt-3"></div>
 </section>
+
+<!-- Modal for New Request -->
+<div class="modal fade" id="requestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">New Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="requestForm">
+                    <div class="mb-3">
+                        <label class="form-label">Request Type</label>
+                        <select id="requestType" class="form-control" required>
+                            <option value="">Select Type</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Leave">Leave</option>
+                            <option value="Resources">Resources</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Items</label>
+                        <div id="itemsContainer">
+                            <!-- Dynamic items will be added here -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="addItemRow()">
+                            + Add Item
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveRequest()">Submit Request</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 </main>
 
