@@ -22,6 +22,11 @@ function loadFromStorage() {
     if (data) {
         try {
             window.db = JSON.parse(data);
+            // Ensure all accounts have proper structure
+            window.db.accounts = window.db.accounts.map(acc => ({
+                ...acc,
+                verified: acc.verified || false
+            }));
         } catch {
             seedDefaultData();
         }
@@ -37,16 +42,115 @@ function saveToStorage() {
 function seedDefaultData() {
     window.db = {
         accounts: [
-            { firstName: "Admin", lastName: "User", email: "admin@example.com", password: "Password123!", role: "admin", verified: true }
+            { 
+                firstName: "Admin", 
+                lastName: "User", 
+                email: "admin@example.com", 
+                password: "Password123!", 
+                role: "admin", 
+                verified: true 
+            }
         ],
         departments: [
             { id: 1, name: "Engineering", description: "Tech Department" },
-            { id: 2, name: "HR", description: "Human Resources" }
+            { id: 2, name: "HR", description: "Human Resources" },
+            { id: 3, name: "Marketing", description: "Marketing Team" }
         ],
         employees: [],
         requests: []
     };
     saveToStorage();
+}
+
+// =====================================================
+// PHASE 8 – TOAST NOTIFICATIONS (UX IMPROVEMENT)
+// =====================================================
+
+function showToast(message, type = 'info') {
+    const toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// =====================================================
+// PHASE 8 – LOADING STATES
+// =====================================================
+
+function showLoading(button) {
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+    return originalText;
+}
+
+function hideLoading(button, originalText) {
+    button.disabled = false;
+    button.innerHTML = originalText;
+}
+
+// =====================================================
+// PHASE 8 – FORM VALIDATION
+// =====================================================
+
+function validateEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+}
+
+function showFieldError(inputId, message) {
+    const input = document.getElementById(inputId);
+    input.classList.add('is-invalid');
+    
+    // Remove existing error message
+    const existingError = input.nextElementSibling;
+    if (existingError && existingError.classList.contains('invalid-feedback')) {
+        existingError.remove();
+    }
+    
+    // Add new error message
+    const error = document.createElement('div');
+    error.className = 'invalid-feedback';
+    error.textContent = message;
+    input.parentNode.appendChild(error);
+}
+
+function clearFieldError(inputId) {
+    const input = document.getElementById(inputId);
+    input.classList.remove('is-invalid');
+    
+    const error = input.nextElementSibling;
+    if (error && error.classList.contains('invalid-feedback')) {
+        error.remove();
+    }
+}
+
+function clearAllErrors() {
+    document.querySelectorAll('.is-invalid').forEach(input => {
+        input.classList.remove('is-invalid');
+    });
+    document.querySelectorAll('.invalid-feedback').forEach(error => {
+        error.remove();
+    });
 }
 
 // =====================================================
@@ -59,9 +163,14 @@ function setAuthState(isAuthenticated, user = null) {
         currentUser = user;
         body.classList.remove("not-authenticated");
         body.classList.add("authenticated");
-        if (user.role === "admin") body.classList.add("is-admin");
+        if (user.role === "admin") {
+            body.classList.add("is-admin");
+        } else {
+            body.classList.remove("is-admin");
+        }
         const dropdown = document.querySelector(".dropdown-toggle");
-        if (dropdown) dropdown.textContent = user.firstName;
+        if (dropdown) dropdown.textContent = `${user.firstName} ${user.lastName}`;
+        showToast(`Welcome, ${user.firstName}!`, 'success');
     } else {
         currentUser = null;
         body.classList.remove("authenticated", "is-admin");
@@ -72,7 +181,7 @@ function setAuthState(isAuthenticated, user = null) {
 function checkAuthOnLoad() {
     const token = localStorage.getItem("auth_token");
     if (!token) return;
-    const user = window.db.accounts.find(acc => acc.email === token);
+    const user = window.db.accounts.find(acc => acc.email === token && acc.verified);
     if (user) setAuthState(true, user);
 }
 
@@ -83,34 +192,47 @@ function checkAuthOnLoad() {
 function renderProfile() {
     const profileDiv = document.getElementById("profileContent");
     if (!profileDiv || !currentUser) return;
+    
     profileDiv.innerHTML = `
-        <div class="card shadow-sm">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Profile Information</h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">${currentUser.firstName} ${currentUser.lastName}</h5>
-                <p><strong>Email:</strong> ${currentUser.email}</p>
-                <p><strong>Role:</strong> ${currentUser.role}</p>
-                <p><strong>Status:</strong> ${currentUser.verified ? "Verified" : "Not Verified"}</p>
-                <button class="btn btn-warning mt-2" onclick="editProfile()">Edit Profile</button>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Name:</strong> ${currentUser.firstName} ${currentUser.lastName}</p>
+                        <p><strong>Email:</strong> ${currentUser.email}</p>
+                        <p><strong>Role:</strong> <span class="badge bg-${currentUser.role === 'admin' ? 'danger' : 'info'}">${currentUser.role}</span></p>
+                        <p><strong>Status:</strong> <span class="badge bg-success">Verified</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Member Since:</strong> ${new Date().toLocaleDateString()}</p>
+                    </div>
+                </div>
+                <button class="btn btn-warning mt-3" onclick="editProfile()">Edit Profile</button>
             </div>
         </div>
     `;
 }
 
-function editProfile() { alert("Edit Profile feature coming soon!"); }
+function editProfile() { 
+    showToast("Edit Profile feature coming soon!", "info");
+}
 
 // =====================================================
 // PHASE 6 – ADMIN FEATURES (CRUD)
 // =====================================================
 
 // ACCOUNTS MANAGEMENT
-let editingAccountId = null;
+let editingAccountEmail = null;
 
 function renderAccountsList() {
     const container = document.getElementById("accountsTableContainer");
     if (!container) return;
 
-    let html = `<table class="table table-bordered">
-        <thead>
+    let html = `<table class="table table-bordered table-hover">
+        <thead class="table-dark">
             <tr>
                 <th>Name</th><th>Email</th><th>Role</th><th>Verified</th><th>Actions</th>
             </tr>
@@ -120,8 +242,8 @@ function renderAccountsList() {
         html += `<tr>
             <td>${acc.firstName} ${acc.lastName}</td>
             <td>${acc.email}</td>
-            <td>${acc.role}</td>
-            <td>${acc.verified ? "✔" : "—"}</td>
+            <td><span class="badge bg-${acc.role === 'admin' ? 'danger' : 'info'}">${acc.role}</span></td>
+            <td>${acc.verified ? '✅' : '❌'}</td>
             <td>
                 <button class="btn btn-sm btn-warning" onclick="editAccount('${acc.email}')">Edit</button>
                 <button class="btn btn-sm btn-info" onclick="resetPassword('${acc.email}')">Reset PW</button>
@@ -135,7 +257,7 @@ function renderAccountsList() {
 }
 
 function openAccountForm(editEmail = null) {
-    editingAccountId = editEmail;
+    editingAccountEmail = editEmail;
     const container = document.getElementById("accountFormContainer");
     let account = { firstName: "", lastName: "", email: "", password: "", role: "user", verified: false };
     
@@ -147,14 +269,24 @@ function openAccountForm(editEmail = null) {
         <div class="card p-3">
             <h5>${editEmail ? 'Edit' : 'Add'} Account</h5>
             <form onsubmit="saveAccount(event)">
-                <input id="accFirstName" class="form-control mb-2" placeholder="First Name" value="${account.firstName}" required>
-                <input id="accLastName" class="form-control mb-2" placeholder="Last Name" value="${account.lastName}" required>
-                <input id="accEmail" type="email" class="form-control mb-2" placeholder="Email" value="${account.email}" ${editEmail ? 'readonly' : ''} required>
-                <input id="accPassword" type="password" class="form-control mb-2" placeholder="${editEmail ? 'Leave blank to keep current' : 'Password (min 6)'}" ${editEmail ? '' : 'required'}>
-                <select id="accRole" class="form-control mb-2">
-                    <option value="user" ${account.role === "user" ? "selected" : ""}>User</option>
-                    <option value="admin" ${account.role === "admin" ? "selected" : ""}>Admin</option>
-                </select>
+                <div class="mb-2">
+                    <input id="accFirstName" class="form-control" placeholder="First Name" value="${account.firstName}" required>
+                </div>
+                <div class="mb-2">
+                    <input id="accLastName" class="form-control" placeholder="Last Name" value="${account.lastName}" required>
+                </div>
+                <div class="mb-2">
+                    <input id="accEmail" type="email" class="form-control" placeholder="Email" value="${account.email}" ${editEmail ? 'readonly' : ''} required>
+                </div>
+                <div class="mb-2">
+                    <input id="accPassword" type="password" class="form-control" placeholder="${editEmail ? 'Leave blank to keep current' : 'Password (min 6)'}" ${editEmail ? '' : 'required'}>
+                </div>
+                <div class="mb-2">
+                    <select id="accRole" class="form-control">
+                        <option value="user" ${account.role === "user" ? "selected" : ""}>User</option>
+                        <option value="admin" ${account.role === "admin" ? "selected" : ""}>Admin</option>
+                    </select>
+                </div>
                 <div class="form-check mb-2">
                     <input id="accVerified" type="checkbox" class="form-check-input" ${account.verified ? "checked" : ""}>
                     <label class="form-check-label">Verified</label>
@@ -167,7 +299,7 @@ function openAccountForm(editEmail = null) {
 
 function closeAccountForm() {
     document.getElementById("accountFormContainer").innerHTML = "";
-    editingAccountId = null;
+    editingAccountEmail = null;
 }
 
 function saveAccount(event) {
@@ -179,17 +311,17 @@ function saveAccount(event) {
     const role = document.getElementById('accRole').value;
     const verified = document.getElementById('accVerified').checked;
 
-    if (editingAccountId === null) {
+    if (editingAccountEmail === null) {
         // New account
         const password = document.getElementById('accPassword').value;
         if (!password || password.length < 6) {
-            alert("Password must be at least 6 characters");
+            showToast("Password must be at least 6 characters", "danger");
             return;
         }
         
         // Check if email already exists
         if (window.db.accounts.find(a => a.email === email)) {
-            alert("Email already exists");
+            showToast("Email already exists", "danger");
             return;
         }
         
@@ -201,9 +333,10 @@ function saveAccount(event) {
             role: role,
             verified: verified
         });
+        showToast("Account created successfully!", "success");
     } else {
         // Edit existing
-        const index = window.db.accounts.findIndex(a => a.email === editingAccountId);
+        const index = window.db.accounts.findIndex(a => a.email === editingAccountEmail);
         const password = document.getElementById('accPassword').value;
         
         window.db.accounts[index] = {
@@ -215,6 +348,7 @@ function saveAccount(event) {
             verified: verified,
             password: password || window.db.accounts[index].password
         };
+        showToast("Account updated successfully!", "success");
     }
 
     saveToStorage();
@@ -229,19 +363,19 @@ function editAccount(email) {
 function resetPassword(email) {
     const newPw = prompt("Enter new password (min 6 chars)");
     if (!newPw || newPw.length < 6) {
-        alert("Invalid password");
+        showToast("Invalid password", "danger");
         return;
     }
     
     const account = window.db.accounts.find(a => a.email === email);
     account.password = newPw;
     saveToStorage();
-    alert("Password reset!");
+    showToast("Password reset successfully!", "success");
 }
 
 function deleteAccount(email) {
     if (email === currentUser?.email) {
-        alert("Cannot delete yourself");
+        showToast("Cannot delete yourself", "danger");
         return;
     }
     
@@ -250,17 +384,18 @@ function deleteAccount(email) {
     window.db.accounts = window.db.accounts.filter(a => a.email !== email);
     saveToStorage();
     renderAccountsList();
+    showToast("Account deleted successfully!", "info");
 }
 
-// DEPARTMENTS MANAGEMENT (COMPLETE CRUD)
+// DEPARTMENTS MANAGEMENT
 let editingDeptId = null;
 
 function renderDepartmentsTable() {
     const container = document.getElementById("departmentsTableContainer");
     if (!container) return;
     
-    let html = `<table class="table table-bordered">
-        <thead>
+    let html = `<table class="table table-bordered table-hover">
+        <thead class="table-dark">
             <tr>
                 <th>Name</th><th>Description</th><th>Actions</th>
             </tr>
@@ -298,8 +433,12 @@ function openDepartmentForm(editId = null) {
         <div class="card p-3">
             <h5>${editId ? 'Edit' : 'Add'} Department</h5>
             <form onsubmit="saveDepartment(event)">
-                <input id="deptName" class="form-control mb-2" placeholder="Department Name" value="${dept.name}" required>
-                <textarea id="deptDesc" class="form-control mb-2" placeholder="Description" required>${dept.description}</textarea>
+                <div class="mb-2">
+                    <input id="deptName" class="form-control" placeholder="Department Name" value="${dept.name}" required>
+                </div>
+                <div class="mb-2">
+                    <textarea id="deptDesc" class="form-control" placeholder="Description" required>${dept.description}</textarea>
+                </div>
                 <button class="btn btn-success">Save</button>
                 <button type="button" class="btn btn-secondary" onclick="closeDepartmentForm()">Cancel</button>
             </form>
@@ -328,6 +467,7 @@ function saveDepartment(event) {
             name: name,
             description: description
         });
+        showToast("Department added successfully!", "success");
     } else {
         // Edit existing
         const index = window.db.departments.findIndex(d => d.id === editingDeptId);
@@ -336,6 +476,7 @@ function saveDepartment(event) {
             name: name,
             description: description
         };
+        showToast("Department updated successfully!", "success");
     }
 
     saveToStorage();
@@ -353,24 +494,25 @@ function deleteDepartment(id) {
     // Check if department is used by employees
     const isUsed = window.db.employees.some(e => e.deptId === id);
     if (isUsed) {
-        alert("Cannot delete department that has employees");
+        showToast("Cannot delete department that has employees", "danger");
         return;
     }
     
     window.db.departments = window.db.departments.filter(d => d.id !== id);
     saveToStorage();
     renderDepartmentsTable();
+    showToast("Department deleted successfully!", "info");
 }
 
-// EMPLOYEES MANAGEMENT (COMPLETE CRUD)
+// EMPLOYEES MANAGEMENT
 let editingEmployeeId = null;
 
 function renderEmployeesTable() {
     const container = document.getElementById("employeesTableContainer");
     if (!container) return;
     
-    let html = `<table class="table table-bordered">
-        <thead>
+    let html = `<table class="table table-bordered table-hover">
+        <thead class="table-dark">
             <tr>
                 <th>ID</th><th>Email</th><th>Position</th><th>Department</th><th>Actions</th>
             </tr>
@@ -412,14 +554,24 @@ function openEmployeeForm(editId = null) {
         <div class="card p-3">
             <h5>${editId ? 'Edit' : 'Add'} Employee</h5>
             <form onsubmit="saveEmployee(event)">
-                <input id="empId" class="form-control mb-2" placeholder="Employee ID" value="${emp.employeeId}" ${editId ? 'readonly' : ''} required>
-                <input id="empEmail" class="form-control mb-2" placeholder="User Email" value="${emp.userEmail}" required>
-                <input id="empPosition" class="form-control mb-2" placeholder="Position" value="${emp.position}" required>
-                <select id="empDept" class="form-control mb-2" required>
-                    <option value="">Select Department</option>
-                    ${deptOptions}
-                </select>
-                <input id="empHireDate" type="date" class="form-control mb-2" value="${emp.hireDate}" required>
+                <div class="mb-2">
+                    <input id="empId" class="form-control" placeholder="Employee ID" value="${emp.employeeId}" ${editId ? 'readonly' : ''} required>
+                </div>
+                <div class="mb-2">
+                    <input id="empEmail" class="form-control" placeholder="User Email" value="${emp.userEmail}" required>
+                </div>
+                <div class="mb-2">
+                    <input id="empPosition" class="form-control" placeholder="Position" value="${emp.position}" required>
+                </div>
+                <div class="mb-2">
+                    <select id="empDept" class="form-control" required>
+                        <option value="">Select Department</option>
+                        ${deptOptions}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <input id="empHireDate" type="date" class="form-control" value="${emp.hireDate}" required>
+                </div>
                 <button class="btn btn-success">Save</button>
                 <button type="button" class="btn btn-secondary" onclick="closeEmployeeForm()">Cancel</button>
             </form>
@@ -445,14 +597,14 @@ function saveEmployee(event) {
     // Validate user exists
     const userExists = window.db.accounts.find(a => a.email === email);
     if (!userExists) {
-        alert("User email does not exist");
+        showToast("User email does not exist", "danger");
         return;
     }
 
     if (editingEmployeeId === null) {
         // Check if employee ID already exists
         if (window.db.employees.find(e => e.employeeId === employeeId)) {
-            alert("Employee ID already exists");
+            showToast("Employee ID already exists", "danger");
             return;
         }
         
@@ -463,6 +615,7 @@ function saveEmployee(event) {
             deptId: deptId,
             hireDate: hireDate
         });
+        showToast("Employee added successfully!", "success");
     } else {
         // Edit existing
         const index = window.db.employees.findIndex(e => e.employeeId === editingEmployeeId);
@@ -473,6 +626,7 @@ function saveEmployee(event) {
             deptId: deptId,
             hireDate: hireDate
         };
+        showToast("Employee updated successfully!", "success");
     }
 
     saveToStorage();
@@ -489,6 +643,7 @@ function deleteEmployee(employeeId) {
     window.db.employees = window.db.employees.filter(e => e.employeeId !== employeeId);
     saveToStorage();
     renderEmployeesTable();
+    showToast("Employee deleted successfully!", "info");
 }
 
 // =====================================================
@@ -498,14 +653,11 @@ function deleteEmployee(employeeId) {
 let requestModal = null;
 
 function openRequestModal() {
-    // Reset form
+    clearAllErrors();
     document.getElementById('requestForm').reset();
     document.getElementById('itemsContainer').innerHTML = '';
-    
-    // Add first item row by default
     addItemRow();
     
-    // Show modal
     if (requestModal) {
         requestModal.show();
     }
@@ -529,7 +681,7 @@ function saveRequest() {
     
     // Validate type
     if (!type) {
-        alert('Please select a request type');
+        showToast('Please select a request type', 'danger');
         return;
     }
     
@@ -542,6 +694,11 @@ function saveRequest() {
         const itemName = inputs[0].value.trim();
         const quantity = parseInt(inputs[1].value);
         
+        if (!itemName) {
+            showToast('Please fill in all item names', 'danger');
+            return;
+        }
+        
         if (itemName && quantity > 0) {
             items.push({
                 name: itemName,
@@ -552,7 +709,7 @@ function saveRequest() {
     
     // Validate at least one item
     if (items.length === 0) {
-        alert('Please add at least one item');
+        showToast('Please add at least one item', 'danger');
         return;
     }
     
@@ -579,7 +736,7 @@ function saveRequest() {
     requestModal.hide();
     renderRequestsList();
     
-    alert('Request submitted successfully!');
+    showToast('Request submitted successfully!', 'success');
 }
 
 function renderRequestsList() {
@@ -594,8 +751,8 @@ function renderRequestsList() {
         return;
     }
     
-    let html = `<table class="table table-bordered">
-        <thead>
+    let html = `<table class="table table-bordered table-hover">
+        <thead class="table-dark">
             <tr>
                 <th>Type</th>
                 <th>Items</th>
@@ -634,6 +791,24 @@ function navigateTo(hash){ window.location.hash = hash; }
 
 function handleRouting(){
     let hash = window.location.hash || "#/";
+    
+    // PHASE 8 – ACCESS CONTROL TESTS
+    const protectedRoutes = ['#/profile', '#/requests', '#/employees', '#/accounts', '#/departments'];
+    const adminRoutes = ['#/employees', '#/accounts', '#/departments'];
+    
+    // Test 5: Try accessing #/employees as regular user → blocked
+    if (protectedRoutes.includes(hash) && !currentUser) {
+        showToast('Please login first', 'warning');
+        navigateTo('#/login');
+        return;
+    }
+    
+    if (adminRoutes.includes(hash) && (!currentUser || currentUser.role !== 'admin')) {
+        showToast('Access denied: Admin only', 'danger');
+        navigateTo('#/');
+        return;
+    }
+    
     document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
 
     const map = {
@@ -665,24 +840,61 @@ function handleRouting(){
 function registerUser(event){
     event.preventDefault();
     
+    clearAllErrors();
+    
+    const firstName = document.getElementById('regFirstName').value.trim();
+    const lastName = document.getElementById('regLastName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    
+    // Validation
+    let isValid = true;
+    
+    if (!firstName) {
+        showFieldError('regFirstName', 'First name is required');
+        isValid = false;
+    }
+    
+    if (!lastName) {
+        showFieldError('regLastName', 'Last name is required');
+        isValid = false;
+    }
+    
+    if (!email) {
+        showFieldError('regEmail', 'Email is required');
+        isValid = false;
+    } else if (!validateEmail(email)) {
+        showFieldError('regEmail', 'Please enter a valid email');
+        isValid = false;
+    }
+    
+    if (!password) {
+        showFieldError('regPassword', 'Password is required');
+        isValid = false;
+    } else if (password.length < 6) {
+        showFieldError('regPassword', 'Password must be at least 6 characters');
+        isValid = false;
+    }
+    
+    if (!isValid) return;
     
     if(window.db.accounts.find(a => a.email === email)) {
-        alert("Email exists");
+        showToast("Email already exists", "danger");
         return;
     }
     
     window.db.accounts.push({
-        firstName: document.getElementById('regFirstName').value.trim(),
-        lastName: document.getElementById('regLastName').value.trim(),
+        firstName: firstName,
+        lastName: lastName,
         email: email,
-        password: document.getElementById('regPassword').value,
+        password: password,
         role: "user",
         verified: false
     });
     
     saveToStorage();
     localStorage.setItem("unverified_email", email);
+    showToast("Registration successful! Please verify your email.", "success");
     navigateTo("#/verify-email");
 }
 
@@ -692,6 +904,7 @@ function verifyEmail(){
     if(user) { 
         user.verified = true; 
         saveToStorage(); 
+        showToast("Email verified successfully! You can now login.", "success");
     }
     localStorage.removeItem("unverified_email");
     navigateTo("#/login");
@@ -700,14 +913,34 @@ function verifyEmail(){
 function loginUser(event){
     event.preventDefault();
     
+    clearAllErrors();
+    
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    
+    // Validation
+    let isValid = true;
+    
+    if (!email) {
+        showFieldError('loginEmail', 'Email is required');
+        isValid = false;
+    }
+    
+    if (!password) {
+        showFieldError('loginPassword', 'Password is required');
+        isValid = false;
+    }
+    
+    if (!isValid) return;
+    
     const user = window.db.accounts.find(a => 
-        a.email === document.getElementById('loginEmail').value && 
-        a.password === document.getElementById('loginPassword').value && 
+        a.email === email && 
+        a.password === password && 
         a.verified
     );
     
     if(!user) {
-        alert("Invalid credentials");
+        showToast("Invalid credentials or email not verified", "danger");
         return;
     }
     
@@ -719,8 +952,40 @@ function loginUser(event){
 function logoutUser(){
     localStorage.removeItem("auth_token");
     setAuthState(false);
+    showToast("Logged out successfully", "info");
     navigateTo("#/");
 }
+
+// =====================================================
+// PHASE 8 – TEST SCENARIO HELPERS
+// =====================================================
+
+// Test 1: Register → verify → login → view profile (already implemented)
+
+// Test 2: Log in as admin → create new user → log out → log in as new user
+function testCreateNewUser() {
+    if (currentUser?.role !== 'admin') {
+        showToast('Please login as admin first', 'warning');
+        return;
+    }
+    
+    const testUser = {
+        firstName: 'Test',
+        lastName: 'User',
+        email: `test${Date.now()}@example.com`,
+        password: 'Test123!',
+        role: 'user',
+        verified: true
+    };
+    
+    window.db.accounts.push(testUser);
+    saveToStorage();
+    showToast(`Test user created: ${testUser.email}`, 'success');
+}
+
+// Test 3: Submit a request → see it in “My Requests” (already implemented)
+
+// Test 4: Refresh browser → data persists (handled by localStorage)
 
 // =====================================================
 // INIT
@@ -736,6 +1001,9 @@ window.addEventListener("DOMContentLoaded", ()=>{
     if (modalElement) {
         requestModal = new bootstrap.Modal(modalElement);
     }
+    
+    // Test 4: Data persists on refresh - verified by loadFromStorage()
+    showToast('App loaded successfully!', 'info');
 });
 
 window.addEventListener("hashchange", handleRouting);
