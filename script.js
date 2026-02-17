@@ -1,28 +1,75 @@
-// =====================================
-// SIMPLE DATABASE
-// =====================================
+// =====================================================
+// PHASE 0 – PROJECT INITIALIZATION
+// =====================================================
+
+// Global database object
 window.db = {
-    accounts: []
+    accounts: [],
+    departments: [],
+    employees: [],
+    requests: []
 };
 
+// Currently logged in user
 let currentUser = null;
 
 
-// =====================================
-// NAVIGATION
-// =====================================
-function navigateTo(hash) {
-    window.location.hash = hash;
+// =====================================================
+// PHASE 4 – STORAGE CONFIG
+// =====================================================
+
+const STORAGE_KEY = "ipt_demo_v1";
+
+function loadFromStorage() {
+    const data = localStorage.getItem(STORAGE_KEY);
+
+    if (data) {
+        try {
+            window.db = JSON.parse(data);
+        } catch (error) {
+            seedDefaultData();
+        }
+    } else {
+        seedDefaultData();
+    }
+}
+
+function saveToStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.db));
+}
+
+function seedDefaultData() {
+    window.db = {
+        accounts: [
+            {
+                firstName: "Admin",
+                lastName: "User",
+                email: "admin@example.com",
+                password: "Password123!",
+                role: "admin",
+                verified: true
+            }
+        ],
+        departments: [
+            { id: 1, name: "Engineering", description: "Tech Department" },
+            { id: 2, name: "HR", description: "Human Resources" }
+        ],
+        employees: [],
+        requests: []
+    };
+
+    saveToStorage();
 }
 
 
-// =====================================
-// AUTH STATE MANAGEMENT
-// =====================================
-function setAuthState(isAuth, user = null) {
+// =====================================================
+// PHASE 3 – AUTHENTICATION
+// =====================================================
+
+function setAuthState(isAuthenticated, user = null) {
     const body = document.body;
 
-    if (isAuth) {
+    if (isAuthenticated) {
         currentUser = user;
 
         body.classList.remove("not-authenticated");
@@ -30,31 +77,39 @@ function setAuthState(isAuth, user = null) {
 
         if (user.role === "admin") {
             body.classList.add("is-admin");
-        } else {
-            body.classList.remove("is-admin");
         }
 
-        // Update navbar username
-        const dropdown = document.querySelector(".dropdown-toggle");
-        if (dropdown) {
-            dropdown.textContent = user.firstName;
-        }
-
-        renderProfile();
-
+        document.querySelector(".dropdown-toggle").textContent = user.firstName;
     } else {
         currentUser = null;
+
         body.classList.remove("authenticated", "is-admin");
         body.classList.add("not-authenticated");
     }
 }
 
+function checkAuthOnLoad() {
+    const token = localStorage.getItem("auth_token");
 
-// =====================================
-// ROUTING
-// =====================================
+    if (!token) return;
+
+    const user = window.db.accounts.find(acc => acc.email === token);
+
+    if (user) {
+        setAuthState(true, user);
+    }
+}
+
+
+// =====================================================
+// PHASE 2 – ROUTING SYSTEM
+// =====================================================
+
+function navigateTo(hash) {
+    window.location.hash = hash;
+}
+
 function handleRouting() {
-
     let hash = window.location.hash;
 
     if (!hash) {
@@ -96,33 +151,67 @@ function handleRouting() {
         page.classList.remove("active");
     });
 
-    const pageId = hash.replace("#/", "") + "-page";
-    const page = document.getElementById(pageId) || document.getElementById("home-page");
+    let pageId = "";
 
-    if (page) {
-        page.classList.add("active");
+    switch (hash) {
+        case "#/":
+            pageId = "home-page";
+            break;
+        case "#/login":
+            pageId = "login-page";
+            break;
+        case "#/register":
+            pageId = "register-page";
+            break;
+        case "#/verify-email":
+            pageId = "verify-email-page";
+            break;
+        case "#/profile":
+            pageId = "profile-page";
+            break;
+        case "#/employees":
+            pageId = "employees-page";
+            break;
+        case "#/departments":
+            pageId = "departments-page";
+            break;
+        case "#/accounts":
+            pageId = "accounts-page";
+            break;
+        case "#/requests":
+            pageId = "requests-page";
+            break;
+        default:
+            pageId = "home-page";
+    }
+
+    const selectedPage = document.getElementById(pageId);
+    if (selectedPage) {
+        selectedPage.classList.add("active");
     }
 }
 
 
-// =====================================
-// REGISTRATION
-// =====================================
+// =====================================================
+// PHASE 3 – REGISTER / LOGIN / LOGOUT
+// =====================================================
+
 function registerUser(event) {
     event.preventDefault();
 
-    const firstName = regFirstName.value.trim();
-    const lastName = regLastName.value.trim();
-    const email = regEmail.value.trim();
-    const password = regPassword.value;
+    const firstName = document.getElementById("regFirstName").value.trim();
+    const lastName = document.getElementById("regLastName").value.trim();
+    const email = document.getElementById("regEmail").value.trim();
+    const password = document.getElementById("regPassword").value;
 
     if (password.length < 6) {
         alert("Password must be at least 6 characters.");
         return;
     }
 
-    if (window.db.accounts.find(acc => acc.email === email)) {
-        alert("Email already exists.");
+    const exists = window.db.accounts.find(acc => acc.email === email);
+    if (exists) {
+        alert("Email already registered.");
         return;
     }
 
@@ -135,48 +224,38 @@ function registerUser(event) {
         verified: false
     });
 
-    localStorage.setItem("unverified_email", email);
+    saveToStorage();
 
-    alert("Registration successful! Please verify email.");
+    localStorage.setItem("unverified_email", email);
     navigateTo("#/verify-email");
 }
 
-
-// =====================================
-// EMAIL VERIFICATION
-// =====================================
 function verifyEmail() {
     const email = localStorage.getItem("unverified_email");
 
-    if (!email) {
-        alert("No email to verify.");
-        return;
-    }
+    if (!email) return;
 
     const user = window.db.accounts.find(acc => acc.email === email);
 
     if (user) {
         user.verified = true;
-        localStorage.removeItem("unverified_email");
-        alert("Email verified successfully!");
-        navigateTo("#/login");
+        saveToStorage();
     }
+
+    localStorage.removeItem("unverified_email");
+    navigateTo("#/login");
 }
 
-
-// =====================================
-// LOGIN
-// =====================================
 function loginUser(event) {
     event.preventDefault();
 
-    const email = loginEmail.value.trim();
-    const password = loginPassword.value;
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
 
     const user = window.db.accounts.find(acc =>
         acc.email === email &&
         acc.password === password &&
-        acc.verified === true
+        acc.verified
     );
 
     if (!user) {
@@ -185,15 +264,10 @@ function loginUser(event) {
     }
 
     localStorage.setItem("auth_token", user.email);
-
     setAuthState(true, user);
     navigateTo("#/profile");
 }
 
-
-// =====================================
-// LOGOUT
-// =====================================
 function logoutUser() {
     localStorage.removeItem("auth_token");
     setAuthState(false);
@@ -201,26 +275,14 @@ function logoutUser() {
 }
 
 
-// =====================================
-// PROFILE RENDER
-// =====================================
-function renderProfile() {
-    if (!currentUser) return;
+// =====================================================
+// INIT
+// =====================================================
 
-    const profileContent = document.getElementById("profileContent");
+window.addEventListener("DOMContentLoaded", () => {
+    loadFromStorage();
+    checkAuthOnLoad();
+    handleRouting();
+});
 
-    if (profileContent) {
-        profileContent.innerHTML = `
-            <p><strong>Name:</strong> ${currentUser.firstName} ${currentUser.lastName}</p>
-            <p><strong>Email:</strong> ${currentUser.email}</p>
-            <p><strong>Role:</strong> ${currentUser.role}</p>
-        `;
-    }
-}
-
-
-// =====================================
-// EVENT LISTENERS
-// =====================================
 window.addEventListener("hashchange", handleRouting);
-window.addEventListener("DOMContentLoaded", handleRouting);
