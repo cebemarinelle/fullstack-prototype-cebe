@@ -2,7 +2,6 @@
 // PHASE 0 – PROJECT INITIALIZATION
 // =====================================================
 
-// Global database object
 window.db = {
     accounts: [],
     departments: [],
@@ -10,7 +9,6 @@ window.db = {
     requests: []
 };
 
-// Currently logged in user
 let currentUser = null;
 
 
@@ -26,7 +24,7 @@ function loadFromStorage() {
     if (data) {
         try {
             window.db = JSON.parse(data);
-        } catch (error) {
+        } catch {
             seedDefaultData();
         }
     } else {
@@ -79,10 +77,10 @@ function setAuthState(isAuthenticated, user = null) {
             body.classList.add("is-admin");
         }
 
-        document.querySelector(".dropdown-toggle").textContent = user.firstName;
+        const dropdown = document.querySelector(".dropdown-toggle");
+        if (dropdown) dropdown.textContent = user.firstName;
     } else {
         currentUser = null;
-
         body.classList.remove("authenticated", "is-admin");
         body.classList.add("not-authenticated");
     }
@@ -90,26 +88,25 @@ function setAuthState(isAuthenticated, user = null) {
 
 function checkAuthOnLoad() {
     const token = localStorage.getItem("auth_token");
-
     if (!token) return;
 
     const user = window.db.accounts.find(acc => acc.email === token);
-
     if (user) {
         setAuthState(true, user);
     }
 }
+
+
 // =====================================================
-// PHASE 5 – PROFILE RENDERING
+// PHASE 5 – PROFILE PAGE
 // =====================================================
 
 function renderProfile() {
     const profileDiv = document.getElementById("profileContent");
-
     if (!profileDiv || !currentUser) return;
 
     profileDiv.innerHTML = `
-        <div class="card">
+        <div class="card shadow-sm">
             <div class="card-body">
                 <h5 class="card-title">
                     ${currentUser.firstName} ${currentUser.lastName}
@@ -117,9 +114,16 @@ function renderProfile() {
                 <p><strong>Email:</strong> ${currentUser.email}</p>
                 <p><strong>Role:</strong> ${currentUser.role}</p>
                 <p><strong>Status:</strong> ${currentUser.verified ? "Verified" : "Not Verified"}</p>
+                <button class="btn btn-warning mt-2" onclick="editProfile()">
+                    Edit Profile
+                </button>
             </div>
         </div>
     `;
+}
+
+function editProfile() {
+    alert("Edit Profile feature coming soon!");
 }
 
 
@@ -211,11 +215,11 @@ function handleRouting() {
     if (selectedPage) {
         selectedPage.classList.add("active");
     }
-    if (pageId === "profile-page") {
-    renderProfile();
-    }
- }
 
+    if (pageId === "profile-page") {
+        renderProfile();
+    }
+}
 
 
 // =====================================================
@@ -225,18 +229,17 @@ function handleRouting() {
 function registerUser(event) {
     event.preventDefault();
 
-    const firstName = document.getElementById("regFirstName").value.trim();
-    const lastName = document.getElementById("regLastName").value.trim();
-    const email = document.getElementById("regEmail").value.trim();
-    const password = document.getElementById("regPassword").value;
+    const firstName = regFirstName.value.trim();
+    const lastName = regLastName.value.trim();
+    const email = regEmail.value.trim();
+    const password = regPassword.value;
 
     if (password.length < 6) {
         alert("Password must be at least 6 characters.");
         return;
     }
 
-    const exists = window.db.accounts.find(acc => acc.email === email);
-    if (exists) {
+    if (window.db.accounts.find(acc => acc.email === email)) {
         alert("Email already registered.");
         return;
     }
@@ -258,7 +261,6 @@ function registerUser(event) {
 
 function verifyEmail() {
     const email = localStorage.getItem("unverified_email");
-
     if (!email) return;
 
     const user = window.db.accounts.find(acc => acc.email === email);
@@ -275,8 +277,8 @@ function verifyEmail() {
 function loginUser(event) {
     event.preventDefault();
 
-    const email = document.getElementById("loginEmail").value;
-    const password = document.getElementById("loginPassword").value;
+    const email = loginEmail.value;
+    const password = loginPassword.value;
 
     const user = window.db.accounts.find(acc =>
         acc.email === email &&
@@ -291,7 +293,6 @@ function loginUser(event) {
 
     localStorage.setItem("auth_token", user.email);
     setAuthState(true, user);
-    renderProfile();
     navigateTo("#/profile");
 }
 
@@ -310,7 +311,6 @@ window.addEventListener("DOMContentLoaded", () => {
     loadFromStorage();
     checkAuthOnLoad();
     handleRouting();
-    renderProfile();
 });
 
 window.addEventListener("hashchange", handleRouting);
