@@ -99,6 +99,28 @@ function checkAuthOnLoad() {
         setAuthState(true, user);
     }
 }
+// =====================================================
+// PHASE 5 – PROFILE RENDERING
+// =====================================================
+
+function renderProfile() {
+    const profileDiv = document.getElementById("profileContent");
+
+    if (!profileDiv || !currentUser) return;
+
+    profileDiv.innerHTML = `
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    ${currentUser.firstName} ${currentUser.lastName}
+                </h5>
+                <p><strong>Email:</strong> ${currentUser.email}</p>
+                <p><strong>Role:</strong> ${currentUser.role}</p>
+                <p><strong>Status:</strong> ${currentUser.verified ? "Verified" : "Not Verified"}</p>
+            </div>
+        </div>
+    `;
+}
 
 
 // =====================================================
@@ -189,7 +211,11 @@ function handleRouting() {
     if (selectedPage) {
         selectedPage.classList.add("active");
     }
-}
+    if (pageId === "profile-page") {
+    renderProfile();
+    }
+ }
+
 
 
 // =====================================================
@@ -265,6 +291,7 @@ function loginUser(event) {
 
     localStorage.setItem("auth_token", user.email);
     setAuthState(true, user);
+    renderProfile();
     navigateTo("#/profile");
 }
 
@@ -283,6 +310,7 @@ window.addEventListener("DOMContentLoaded", () => {
     loadFromStorage();
     checkAuthOnLoad();
     handleRouting();
+    renderProfile();
 });
 
 window.addEventListener("hashchange", handleRouting);
